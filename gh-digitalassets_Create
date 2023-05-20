@@ -1,0 +1,651 @@
+#!/usr/bin/env python
+# set -e
+from __future__ import print_function, unicode_literals
+# echo "Hello gh-digitalassets!"
+import argparse
+from github import Github
+from github import GithubException
+import os
+import sys
+import json
+import subprocess
+# import PyInquirer
+from InquirerPy import prompt
+
+# from PyInquirer import prompt
+############## 
+## global variables
+#############
+# token = ""
+
+g = Github("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")
+user = g.get_user()
+parser = argparse.ArgumentParser(prog="digitalassets", description="Simple helper commands to interact with Github Repos")
+# parser.add_argument("action",
+#                     choices=["reponame","listcontents","uploadfile"],
+#                     help="Operation on Github Repos")
+# parser.add_argument("reponame")
+subparser = parser.add_subparsers(dest='command',help="Testing help command")
+
+login = subparser.add_parser("login")
+reponame = subparser.add_parser("reponame")
+createrepo = subparser.add_parser("createrepo",help="Testing help command")
+
+checkmetadata = subparser.add_parser("checkmetadata",help="Check if metadata file exists or not")
+checkmetadata.add_argument("--reponame",type=str,required=True,help="Give the repo full name to check for the metadata file")
+
+gettopics = subparser.add_parser("gettopics",help="Get the topics of the repository")
+gettopics.add_argument("--reponame",type=str,required=True,help="Give the repo full name to check for the topics")
+
+addtopicsStandAlone = subparser.add_parser("addtopics",help="Add topics to the digital asset")
+addtopicsStandAlone.add_argument("--reponame",type = str,required=True,help="Give the repo name to add topics to")
+addtopicsStandAlone.add_argument("--topics",nargs='+',type=str,required=True,help="Give a list of topics separated by spaces")
+
+
+getdesc = subparser.add_parser("getdescription",help="Get the description of this digital asset")
+getdesc.add_argument("--reponame",type = str,required=True,help="Give the repo name to get the description")
+
+
+adddesc = subparser.add_parser("adddesc",help="Add description to your digitalasset")
+adddesc.add_argument("--reponame",type = str,required=True,help="Give the repo name to add the description")
+adddesc.add_argument("--desc",type=str,required=True,help="Give the description to be added to the asset")
+
+
+
+####################
+## empty repo command removed
+# createemptyrepo = subparser.add_parser("createemprepo")
+# createemptyrepo.add_argument("--reponame",type=str,required=True)
+####################
+
+createrepo.add_argument("--reponame",type=str,required=True,help="Give the name of the repo to be created")
+createrepo.add_argument("--filepath",type=str,required=False,help= "Give a folder/file path to upload files. Not a required argument")
+createrepo.add_argument("--empty",type=str,required=False,default="False",help="True if we need to create empty repo. By defualt False")
+createrepo.add_argument("--addtopics",nargs='+',type=str,required=False,help="Give a list of topics separated by spaces. Not a required argument")
+
+# repo_name = 'ramchandra-ub/FileTest15Mar11'
+# repo = g.get_repo(repo_name)
+
+
+
+# def getAuthToken():
+#     g = Github(token)
+#     user = g.get_user()
+#     return g,user
+
+args = parser.parse_args()
+
+# if args.command == "login":
+
+#     subprocess.run("gh auth login", shell = True)
+#     token = subprocess.run("gh auth token", shell = True, capture_output = True)
+#     token = token.stdout.decode('ascii').strip()
+#     g = Github(token)
+#     user = g.get_user()
+
+
+##########################################
+## functions
+##########################################
+
+ensTopicList = ["ens-machinelearning", "ens-mathematics", "ens-lifeSciences", "ens-Sports", "ens-others"]
+
+def uploadFiles_Directory(filePath):
+    allFiles = os.listdir(filePath)
+    print(allFiles)
+    for files in allFiles:
+        if files == ".git":
+            continue
+        with open((os.path.join(filePath,files)),'rb') as file:
+            fileContent = file.read()
+        ## upload file to the repo
+        # createdRepoName.create_file("testfile.txt","create file",fileContent,branch="main")
+
+        createdRepoName.create_file(files,"create file",fileContent,branch="main")
+    print("All files in the specified directory uploaded")
+
+def createRepo(repoName):
+    createdRepo = user.create_repo(repoName)
+    return g.get_repo(createdRepo.full_name)
+
+def addTopicsCreation(createdRepoName):
+    print("Topics must be added to this digital asset.\n Please choose from one of the assets below.")
+    repoobj = g.get_repo(createdRepoName.full_name)
+    topics = repoobj.get_topics()
+    questions = [
+        {
+        'type': 'list',
+        'name': 'topic',
+        'message': 'What topic to add?',
+        'choices': ensTopicList,
+        'filter': lambda val: val.lower()
+        },
+    ]
+    answers = prompt(questions)
+    # print(answers['topic'])
+    topics.append(answers['topic'])
+    repoobj.replace_topics(topics)
+    print("Added the given topics to the repo")
+    print("Current topics in this repo are "+str(topics)+"\n")
+    userinp = input("You can also add custom topics to this digital asset. Press Y if you want to add new topics to the repo. Otherwise press N: ")
+    if userinp == "Y":
+        userinp1 = input("Enter the topic names using comma separation: ")
+        inputsplit = userinp1.split(",")
+        for topic in inputsplit:
+            if topic in topics:
+                print("This topic "+topic+" is already added")
+                continue
+            topics.append(topic)
+    else:
+        print("Terminating")
+        sys.exit()
+        
+    repoobj.replace_topics(topics)
+    print("Added the given topics to the repo")
+    print("Current topics in this repo are "+str(topics))
+
+
+def addDesc(createdRepoName):
+    userinp = input("please enter a one line description for the digital asset")
+    subprocess.run(f"gh repo edit {createdRepoName.full_name} -d \"{userinp}\"",shell=True)
+
+
+# def checkMetaData(fileContent):
+#     nameFlag = 0
+#     topicsFlag = 0
+#     descFlag = 0
+#     metadataFlag = 0
+#     assocFlag = 0
+#     predefTopics = ['ens-mlmodel','ens-asset','ens-random']
+#     predefFlag = 0
+#     # currRepo = g.get_repo(createdRepoName)
+#     # try:
+#     #     contents = currRepo.get_contents("")
+#     # except GithubException as e:
+#     #     if e.status == 404:
+#     #         print("The repository is empty.")
+#     #         sys.exit()
+#     # for content in contents:
+#     #     # print(str(content))
+#     #     if "metadata.json" in str(content):
+#     #         metadataFlag += 1
+#     #         print("Metadata file present.")
+#     #         metadata = currRepo.get_contents("metadata.json")
+#     metadata_dict = json.loads(fileContent)
+#     # print(metadata_dict['description'])
+#     if(metadata_dict.get('assetName') is None):
+#         # print("Metadata files doesn't have id")
+#         nameFlag += 1
+#         print("name is not present in the metadata file.")
+#     if(metadata_dict.get('topics') is None):
+#         # print("Metadata files doesn't have type")
+#         topicsFlag += 1
+#         print("There must be atleast one predefined topics")
+#         print("Give one from the below list")
+#         print(predefTopics)
+#     else:
+#         topics = metadata_dict.get('topics')
+#         # print(topics)
+#         for topic in topics:
+#             if topic in predefTopics:
+#                 predefFlag += 1
+        
+#         if predefFlag == 0:
+#             print("There must be atleast one predefined topics")
+#             print("Give one from the below list")
+#             print(predefTopics)
+#         else:
+#             topicsFunc = topics
+
+            
+
+#     if(metadata_dict.get('description') is None):
+#         # print("Metadata files doesn't have a description")
+#         descFlag += 1
+#         print("description is not present in the metadata file.")
+#     else:
+#         descFunc = metadata_dict.get('description')
+#     if(metadata_dict.get('associations') is None):
+#         # print("Metadata files doesn't have a description")
+#         assocFlag += 1
+#         print("associations are not present in the metadata file.")
+#     # if nameFlag == 1:
+#     if nameFlag == 1 or topicsFlag == 1 or descFlag == 1 or assocFlag == 1 or predefFlag == 0:
+#         print("Please change the file contents to meet the requirements mentioned above and try again")
+#         return 0
+#     else:
+#         return topicsFunc,descFunc
+    # if metadataFlag == 0:
+    #     print("Metadata file not found. Please create it. You can either upload a new file or create it interactively.")
+
+####################################################################
+
+
+### function to select the mandatory topic
+def topic_writing():
+    questions = [
+        {
+        'type': 'list',
+        'name': 'topic',
+        'message': 'What topic to add?',
+        'choices': ["ens-machinelearning", "ens-mathematics", "ens-lifeSciences", "ens-Sports", "ens-others"],
+        'filter': lambda val: val.lower()
+        },
+    ]
+    answers = prompt(questions)
+    return(answers)
+
+
+#########################################################################
+
+### Metadata Checking and interactive building
+def metaDataParserCreate(fileContent):
+    parsers = ['assetName', 'description', 'topics', 'associations']
+    try:
+        metaData = json.loads(fileContent)
+    except:
+        print("Metadata file is empty. You can use interactive building to build the metadata on the fly. Press Y or N")
+        userinp = input()
+        if userinp == "Y":
+            return inetractiveBuildingCreate() 
+        else:
+            print("Please change the file and come back.")
+            sys.exit()
+
+    remaining = {}
+    keys = []
+    counter = 0
+    topics_bool = True
+    for tag in parsers:
+        if(tag in metaData):
+            if(tag == 'topics'):
+                topics_list = metaData['topics']
+                var = any(tag in ensTopicList for tag in topics_list)
+                if(not var):
+                    print("Please provide a topic according to the ENS standards.")
+                    topics_bool = False
+            if(metaData[tag]):
+                pass 
+                counter += 1
+            else:
+                print("There is no value provided for the key {}".format(tag))
+                remaining[tag] = ""
+        else:
+            print("{} key not present in the file".format(tag))
+            keys.append(tag)
+    if(counter == 4 and topics_bool == True):
+        return(metaData, 1,0,0)
+
+    if(len(remaining) > 0 or len(keys) > 0 or topics_bool == False):
+        print("Do you want to interactively add the missing keys or values?: Y or N")
+        resp = input()
+        if(resp == 'Y'):
+            if(len(remaining) > 0):
+                for tag in remaining:
+                    print("Please provide the value of the {}".format(tag))
+                    resp_tag = input()
+                    metaData[tag] = resp_tag
+            if(len(keys) > 0):
+                print("Please provide the value for the following keys")
+                for tag in keys:
+                    if(tag == "topics"):
+                        print("Provide the value of the tag {}".format(tag))
+                        metaData["topics"] = []
+                        topic_inp = topic_writing()
+                        metaData["topics"].append(topic_inp["topic"])
+                    else:
+                        print("Provide the value of the tag {}".format(tag))
+                        resp_tag = input()
+                        metaData[tag] = resp_tag
+            if(not topics_bool):
+                topic_inp = topic_writing()
+                metaData["topics"].append(topic_inp["topic"])
+
+        else:
+            return("Please change your json file accordingly and re-upload", 0,0,0)
+
+    json_object = json.dumps(metaData, indent = 4)
+    return(json_object,1,metaData["topics"],metaData["description"])
+
+##################################################################
+
+## Interactive building if there is no metadata file
+
+def inetractiveBuildingCreate():
+    metaData = {}
+    print("Please provide the asset Name.")
+    assetName = str(input())
+    metaData["assetName"] = assetName
+    print("Please provide a one liner description")
+    description = str(input())
+    metaData["description"] = description
+    topics = []
+    print("Please select a mandatory topic from below")
+    questions = [
+        {
+        'type': 'list',
+        'name': 'topic',
+        'message': 'What topic to add?',
+        'choices': ["ens-machinelearning", "ens-mathematics", "ens-lifeSciences", "ens-Sports", "ens-others"],
+        'filter': lambda val: val.lower()
+        },
+    ]
+    answers = prompt(questions)
+    # print(answers['topic'])
+    topics.append(answers['topic'])
+
+    userinp1 = input("You can also add custom topics to this digital asset. Press Y if you want to add new topics to the repo. Otherwise press N: ")
+    if userinp1 == "Y":
+        userinp2 = input("Enter the topic names using comma separation: ")
+        inputsplit = userinp2.split(",")
+        for topic in inputsplit:
+            if topic in topics:
+                print("This topic "+topic+" is already added")
+                continue
+            topics.append(topic)
+    
+
+    metaData["topics"] = topics
+
+    print("Please provide the associations(URSL's). If multiple, provide by giving space")
+    associations = input().split()
+    metaData["associations"] = associations
+
+    json_object = json.dumps(metaData, indent = 4)
+    return(json_object,1,metaData["topics"],metaData["description"])
+
+##############################################################################
+
+
+
+#############################################################################
+
+
+
+# elif args.command == "createemprepo":
+#     ## create repo
+#     createdRepo = user.create_repo(args.reponame)
+#     print("Repo created with name "+ createdRepo.full_name)
+if args.command == "createrepo":
+    metadataFlag = 0
+    # g,user = getAuthToken()
+    ## create repo
+    if args.empty == "True":
+        # createdRepo = user.create_repo(args.reponame)
+        createdRepoName = createRepo(args.reponame)
+        print("Empty repo created. Upload the digital asset files.")
+    else:
+        # createdRepo = user.create_repo(args.reponame)
+        
+        # createdRepoName = g.get_repo(createdRepo.full_name)
+
+        ## read file content
+        if args.filepath is None:
+            print("Files must be uploaded when creating a non-empty repo")
+            print("Files in the current repo are: ")
+            print(os.listdir(os.getcwd()))
+            userinp = input("Do you want all files in the current directory to be uploaded?  Press Y/N: Pressing N will not create any repo.")
+            if userinp == "Y":
+                allFiles = os.listdir(os.getcwd())
+                print(allFiles)
+                for files in allFiles:
+                    if "metadata.json" in files:
+                        metadataFlag = 1
+                        with open((os.path.join(os.getcwd(),files)),'rb') as file:
+                            fileContent = file.read()
+                            jsonObject, flag, topicsFunc, descFunc = metaDataParserCreate(fileContent)
+                            
+                            if(flag == 0):
+                                print(jsonObject)
+                                sys.exit()
+                            else:
+                                with open(f"{os.getcwd()}/metadata.json","w") as outfile:
+                                    outfile.write(jsonObject)
+
+
+
+                if metadataFlag == 0:
+                    print("Metadata file not found. It is mandatory for a digital asset.")
+                    userinp = input("You can create it interactively. Press Y to create interactively, or press N to create it manually: ")
+                    if userinp == "Y":
+                        jsonObject,flag,topicsFunc,descFunc = inetractiveBuildingCreate()
+                        with open(f"{os.getcwd()}/metadata.json","w") as outfile:
+                            outfile.write(jsonObject)
+                    else:
+                        print("Please come back after creating the metadata.json file")
+                        sys.exit()
+
+                createdRepoName = createRepo(args.reponame)
+                print("Repo created with name "+ str(createdRepoName.full_name))
+                uploadFiles_Directory(os.getcwd())
+                ###################
+                ## add the topics to the repo
+                ###################
+                repoobj = g.get_repo(createdRepoName.full_name)
+                print("This is topic func test")
+                print(topicsFunc)
+                repoobj.replace_topics(topicsFunc)
+                ###################
+                ## add the desc to the repo
+                ###################
+                subprocess.run(f"gh repo edit {createdRepoName.full_name} -d {descFunc}",shell=True)
+                # addTopicsCreation(createdRepoName)
+                # addDesc(createdRepoName)
+            else:
+                sys.exit()
+
+        elif os.path.isfile(args.filepath):
+            createdRepoName = createRepo(args.reponame)
+            print("Repo created with name "+ str(createdRepoName.full_name))
+            with open(args.filepath, 'rb') as file:
+                fileContent = file.read()
+            ## upload file to the repo
+            # createdRepoName.create_file("testfile.txt","create file",fileContent,branch="main")
+
+            createdRepoName.create_file(args.filepath.split('\\')[-1],"create file",fileContent,branch="main")
+            print("testfile created in the repo" + str(createdRepoName.full_name))
+            addTopicsCreation(createdRepoName)
+            addDesc(createdRepoName)
+
+        elif os.path.isdir(args.filepath):
+            allFiles = os.listdir(args.filepath)
+            print(allFiles)
+            for files in allFiles:
+                if "metadata.json" in files:
+                    metadataFlag = 1
+                    with open((os.path.join(args.filepath,files)),'rb') as file:
+                        fileContent = file.read()
+                        jsonObject, flag, topicsFunc, descFunc = metaDataParserCreate(fileContent)
+                        
+                        if(flag == 0):
+                            print(jsonObject)
+                            sys.exit()
+                        else:
+                            with open(f"{args.filepath}/metadata.json","w") as outfile:
+                                outfile.write(jsonObject)
+
+            if metadataFlag == 0:
+                print("Metadata file not found. It is mandatory for a digital asset.")
+                userinp = input("You can create it interactively. Press Y to create interactively, or press N to create it manually: ")
+                if userinp == "Y":
+                    jsonObject,topicsFunc,descFunc = inetractiveBuildingCreate()
+                    with open(f"{args.filepath}/metadata.json","w") as outfile:
+                        outfile.write(jsonObject)
+                else:
+                    print("Please come back after creating the metadata.json file")
+                    sys.exit()
+
+            createdRepoName = createRepo(args.reponame)
+            print("Repo created with name "+ str(createdRepoName.full_name))
+            uploadFiles_Directory(args.filepath)
+            ###################
+            ## add the topics to the repo
+            ###################
+            repoobj = g.get_repo(createdRepoName.full_name)
+            repoobj.replace_topics(topicsFunc)
+            ###################
+            ## add the desc to the repo
+            ###################
+            subprocess.run(f"gh repo edit {createdRepoName.full_name} -d {descFunc}",shell=True)
+
+            # addTopicsCreation(createdRepoName)
+            # addDesc(createdRepoName)
+
+
+        ## Adding topics to the repo
+        if args.addtopics is not None:
+            repoobj = g.get_repo(createdRepoName.full_name)
+            topics = repoobj.get_topics()
+            for topic in args.addtopics:
+                if topic in topics:
+                    print("This topic "+topic+" is already added")
+                    continue
+                topics.append(topic)
+        
+            repoobj.replace_topics(topics)
+            print("Added the given topics to the repo")
+            print("Current topics in this repo are "+str(topics))
+
+### Get a list of topics
+
+if args.command == "gettopics":
+    
+    repoobj = g.get_repo(args.reponame)
+    topics = repoobj.get_topics()
+    
+    if len(topics) == 0:
+        print("No topics associated to this repo")
+    else:
+        print("Current topics in this repo are "+str(topics))
+    
+    # topics
+    # topics.append("newone")
+    # repoobj.replace_topics(topics)
+
+### Add topics to an existing repo
+
+if args.command == "addtopics":
+    repoobj = g.get_repo(args.reponame)
+    topics = repoobj.get_topics()
+    for topic in args.topics:
+        if topic in topics:
+            print("This topic "+topic+" is already added")
+            continue
+        topics.append(topic)
+    
+    repoobj.replace_topics(topics)
+    print("Added the given topics to the repo")
+    print("Current topics in this repo are "+str(topics))
+
+
+### get the description of the digital asset
+
+if args.command == "getdescription":
+    repoobj = g.get_repo(args.reponame)
+    desc = repoobj.description
+    print("The descripiton for the repo is \n" + desc)
+
+### add description to the repo
+
+if args.command == "adddesc":
+    
+    # subprocess.run(['gh auth token'])
+    subprocess.run(f"gh repo edit {args.reponame} -d {args.desc}",shell=True)
+    repoobj = g.get_repo(args.reponame)
+    print(repoobj.description)
+
+
+### check metadata file and contents
+    
+idFlag = 0
+typeFlag = 0
+descFlag = 0
+metadataFlag = 0
+
+if args.command == "checkmetadata":
+    # g,user = getAuthToken()
+    currRepo = g.get_repo(args.reponame)
+    try:
+        contents = currRepo.get_contents("")
+    except GithubException as e:
+        if e.status == 404:
+            print("The repository is empty.")
+            sys.exit()
+    for content in contents:
+        # print(str(content))
+        if "metadata.json" in str(content):
+            metadataFlag += 1
+            print("Metadata file present.")
+            metadata = currRepo.get_contents("metadata.json")
+            metadata_dict = json.loads(metadata.decoded_content.decode())
+            # print(metadata_dict['description'])
+            if(metadata_dict.get('id') is None):
+                # print("Metadata files doesn't have id")
+                idFlag += 1
+            if(metadata_dict.get('type') is None):
+                # print("Metadata files doesn't have type")
+                typeFlag += 1
+            if(metadata_dict.get('description') is None):
+                # print("Metadata files doesn't have a description")
+                descFlag += 1
+            
+            if idFlag == 0 and typeFlag == 0 and descFlag == 0:
+                print("All fields are present in the metadata file")
+            else:
+                if idFlag == 1:
+                    print("Id is not present in the metadata file. You can either upload a new file or add it interactively.")
+                if typeFlag == 1:
+                    print("type is not present in the metadata file. You can either upload a new file or add it interactively.")
+                if descFlag == 1:
+                    print("description is not present in the metadata file. You can either upload a new file or add it interactively.")
+            break
+
+    if metadataFlag == 0:
+        print("Metadata file not found. It is mandatory for a digital asset.")
+        input("You can either create it interactively. Press Y to create interactively, or press N to create it manually: ")
+
+        
+
+    
+# elif args.action == "listcontents":
+#     contents = repo.get_contents("")
+#     for content_file in contents:
+#         print(content_file)
+# elif args.action == "uploadfile":
+    # try:
+        # repo.create_file("test1.py", "test", "test", branch="main")
+    # except:
+    #     print("File already exists. Change the file name")
+
+
+
+# Snippets to help get started:
+
+# Determine if an executable is in the PATH
+# if ! type -p ruby >/dev/null; then
+#   echo "Ruby not found on the system" >&2
+#   exit 1
+# fi
+
+# Pass arguments through to another command
+# gh issue list "$@" -R cli/cli
+
+# Using the gh api command to retrieve and format information
+# QUERY='
+#   query($endCursor: String) {
+#     viewer {
+#       repositories(first: 100, after: $endCursor) {
+#         nodes {
+#           nameWithOwner
+#           stargazerCount
+#         }
+#       }
+#     }
+#   }
+# '
+# TEMPLATE='
+#   {{- range $repo := .data.viewer.repositories.nodes -}}
+#     {{- printf "name: %s - stargazers: %v\n" $repo.nameWithOwner $repo.stargazerCount -}}
+#   {{- end -}}
+# '
+# exec gh api graphql -f query="${QUERY}" --paginate --template="${TEMPLATE}"
