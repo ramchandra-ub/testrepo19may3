@@ -1,0 +1,6 @@
+fuzzywuzzy==0.18.0
+InquirerPy==0.3.4
+PyGithub==1.58.0
+PyGithub==1.58.1
+python-dotenv==1.0.0
+Requests==2.29.0
