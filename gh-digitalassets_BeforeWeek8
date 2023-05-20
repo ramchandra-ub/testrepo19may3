@@ -1,0 +1,146 @@
+#!/usr/bin/env python
+# set -e
+
+# echo "Hello gh-digitalassets!"
+import argparse
+from github import Github
+import os
+import sys
+
+g = Github("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")
+user = g.get_user()
+parser = argparse.ArgumentParser(prog="digitalassets", description="Simple helper commands to interact with Github Repos")
+# parser.add_argument("action",
+#                     choices=["reponame","listcontents","uploadfile"],
+#                     help="Operation on Github Repos")
+# parser.add_argument("reponame")
+subparser = parser.add_subparsers(dest='command',help="Testing help command")
+
+reponame = subparser.add_parser("reponame")
+createrepo = subparser.add_parser("createrepo",help="Testing help command")
+
+checkmetadata = subparser.add_parser("checkmetadata",help="Check if metadata file exists or not")
+checkmetadata.add_argument("--reponame",type=str,required=True,help="Give the repo full name to check for the metadata file")
+####################
+## empty repo command removed
+# createemptyrepo = subparser.add_parser("createemprepo")
+# createemptyrepo.add_argument("--reponame",type=str,required=True)
+####################
+
+createrepo.add_argument("--reponame",type=str,required=True,help="Give the name of the repo to be created")
+createrepo.add_argument("--filepath",type=str,required=False,help= "Give a folder path to upload files. Not a required argument")
+createrepo.add_argument("--empty",type=str,required=False,default="False",help="True if we need to create empty repo. By defualt False")
+
+repo_name = 'ramchandra-ub/FileTest15Mar11'
+repo = g.get_repo(repo_name)
+
+def uploadFiles_Directory(filePath):
+    allFiles = os.listdir(filePath)
+    print(allFiles)
+    for files in allFiles:
+        if files == ".git":
+            continue
+        with open((os.path.join(filePath,files))) as file:
+            fileContent = file.read()
+        ## upload file to the repo
+        # createdRepoName.create_file("testfile.txt","create file",fileContent,branch="main")
+
+        createdRepoName.create_file(files,"create file",fileContent,branch="main")
+    print("All files in the specified directory uploaded")
+
+
+args = parser.parse_args()
+
+if args.command == "reponame":
+    print(repo.name)
+# elif args.command == "createemprepo":
+#     ## create repo
+#     createdRepo = user.create_repo(args.reponame)
+#     print("Repo created with name "+ createdRepo.full_name)
+if args.command == "createrepo":
+    ## create repo
+    if args.empty == "True":
+        createdRepo = user.create_repo(args.reponame)
+        createdRepoName = g.get_repo(createdRepo.full_name)
+        print("Empty repo created. Upload the digital asset files.")
+    else:
+        createdRepo = user.create_repo(args.reponame)
+        print("Repo created with name "+ createdRepo.full_name)
+        createdRepoName = g.get_repo(createdRepo.full_name)
+
+        ## read file content
+        if args.filepath is None:
+            print("Files must be uploaded when creating a non-empty repo")
+            print("Files in the current repo are: ")
+            print(os.listdir(os.getcwd()))
+            userinp = input("Do you want all files in the current directory to be uploaded? Press Y/N: ")
+            if userinp == "Y":
+                uploadFiles_Directory(os.getcwd())
+            else:
+                sys.exit()
+        elif os.path.isfile(args.filepath):
+            with open(args.filepath) as file:
+                fileContent = file.read()
+            ## upload file to the repo
+            # createdRepoName.create_file("testfile.txt","create file",fileContent,branch="main")
+
+            createdRepoName.create_file(args.filepath.split('\\')[-1],"create file",fileContent,branch="main")
+            print("testfile created in the repo" + createdRepo.full_name)
+        elif os.path.isdir(args.filepath):
+            uploadFiles_Directory(args.filepath)
+
+if args.command == "checkmetadata":
+    currRepo = g.get_repo(args.reponame)
+    contents = currRepo.get_contents("")
+    for content in contents:
+        # print(str(content))
+        if "metadata.json" in str(content):
+            print("Metadata file present. All good.")
+            break
+        else:
+            print("Metadata file not found. Please create it.")
+        
+
+    
+# elif args.action == "listcontents":
+#     contents = repo.get_contents("")
+#     for content_file in contents:
+#         print(content_file)
+# elif args.action == "uploadfile":
+    # try:
+        # repo.create_file("test1.py", "test", "test", branch="main")
+    # except:
+    #     print("File already exists. Change the file name")
+
+
+
+# Snippets to help get started:
+
+# Determine if an executable is in the PATH
+# if ! type -p ruby >/dev/null; then
+#   echo "Ruby not found on the system" >&2
+#   exit 1
+# fi
+
+# Pass arguments through to another command
+# gh issue list "$@" -R cli/cli
+
+# Using the gh api command to retrieve and format information
+# QUERY='
+#   query($endCursor: String) {
+#     viewer {
+#       repositories(first: 100, after: $endCursor) {
+#         nodes {
+#           nameWithOwner
+#           stargazerCount
+#         }
+#       }
+#     }
+#   }
+# '
+# TEMPLATE='
+#   {{- range $repo := .data.viewer.repositories.nodes -}}
+#     {{- printf "name: %s - stargazers: %v\n" $repo.nameWithOwner $repo.stargazerCount -}}
+#   {{- end -}}
+# '
+# exec gh api graphql -f query="${QUERY}" --paginate --template="${TEMPLATE}"
